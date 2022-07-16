@@ -1,2 +1,2 @@
-# fnf chart fixer
- moves notes from one chart to another
+# fnf chart surgeon
+Takes the camera movements from one chart and puts them into another.
