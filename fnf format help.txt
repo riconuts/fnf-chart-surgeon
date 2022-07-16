@@ -1,0 +1,14 @@
+bpm:Float = 100;
+crochet:Float = ((60 / bpm) * 1000); // beats in milliseconds
+stepCrochet:Float = crochet / 4; // steps in milliseconds
+
+sections by default are 4 beats long (16 steps)
+
+Every note is an array that stores data like this:
+    0: Strum time. (In milliseconds)
+    1: The note data.
+        (0: LEFT, 1: DOWN, 2: UP, 3, RIGHT) Player notes if the current section is a mustHitSection
+        (4: LEFT, 5: DOWN, 6: UP, 7, RIGHT) Opponent notes if the current section is a mustHitSection
+        If the note data is negative then Psych Engine treats the note as a GF note? (not tested)
+    2: The sustain length.
+    3: The note type.
