@@ -39,14 +39,9 @@ import openfl.events.IOErrorEvent;
 import openfl.utils.ByteArray;
 //
 import haxe.Json;
-import flixel.addons.ui.FlxUITabMenu;
 
 class SowyState extends FlxState
 {
-	// some basic explanation for me in case i forget
-	// the dad file contains the notes that are going to be injected into the mom file's section
-	// after that you get the child file which is what you are prompted to save
-
 	var dadData:String;
 	var momData:String;
 
@@ -80,6 +75,7 @@ class SowyState extends FlxState
 			});
 			dadFile.browse(jsonFileFilter);
 		});
+		dadButton.label.offset.y = 4;
 		dadButton.setGraphicSize(80, 30);
 		add(dadButton);
 
@@ -92,11 +88,13 @@ class SowyState extends FlxState
 			});
 			motherFile.browse(jsonFileFilter);
 		});
+		momButton.label.offset.y = 4;
 		momButton.setGraphicSize(80, 30);
 		add(momButton);
 
 		////
 		var childButton = new FlxButton(10, 70, "Save Modified Chart", makeBabies);
+		childButton.label.offset.y = 4;
 		childButton.setGraphicSize(80, 30);
 		add(childButton);
 
@@ -301,6 +299,7 @@ class SowyState extends FlxState
 			console.addTextMessage("An error ocurred.");
 	}
 
+	#if !FLX_NO_KEYBOARD
 	var clock:Float = 0;
 	override public function update(elapsed:Float):Void
 	{
@@ -313,6 +312,7 @@ class SowyState extends FlxState
 
 		super.update(elapsed);
 	}
+	#end
 }
 
 class Console extends FlxTypedGroup<ConsoleText>
