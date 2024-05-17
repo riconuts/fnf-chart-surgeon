@@ -55,7 +55,6 @@ class SowyState extends FlxState
 	override public function create():Void
 	{
 		FlxG.camera.pixelPerfectRender = true;
-		FlxG.camera.antialiasing = false;
 
 		var bg = new FlxSprite();
 		bg.frames = Paths.getSparrowAtlas("space");
@@ -67,7 +66,7 @@ class SowyState extends FlxState
 		console.addTextMessage("hello world!!!");
 
 		////
-		var dadButton = new FlxButton(10, 10, "Load Camera Chart", function(){
+		var dadButton = new FlxButton(10, 10, "Load Notes Chart", function(){
 			var dadFile = new FileReference();
 			dadFile.addEventListener(Event.SELECT, _onSelectDad);
 			dadFile.addEventListener(Event.CANCEL, function(listener:Event){
@@ -80,7 +79,7 @@ class SowyState extends FlxState
 		add(dadButton);
 
 		////
-		var momButton = new FlxButton(10, 40, "Load Notes Chart", function(){
+		var momButton = new FlxButton(10, 40, "Load Camera Chart", function(){
 			var motherFile = new FileReference();
 			motherFile.addEventListener(Event.SELECT, _onSelectMom);
 			motherFile.addEventListener(Event.CANCEL, function(listener:Event){
@@ -145,7 +144,7 @@ class SowyState extends FlxState
 	function _onLoadMom(E:Event):Void
 	{
 		var fr:FileReference = cast E.target;
-		fr.removeEventListener(Event.COMPLETE, _onLoadDad);
+		fr.removeEventListener(Event.COMPLETE, _onLoadMom);
 
 		// it just works, so im going to stick with this
 		momData = FlxStringUtil.formatArray([fr.data]);  
@@ -155,128 +154,107 @@ class SowyState extends FlxState
 		console.addTextMessage("Mom file successfully loaded");
 	}
 
+	function getSectionBeats(song:SwagSong, secNum:Int)
+	{
+		var val:Null<Float> = null;
+		
+		if(song.notes[secNum] != null) 
+			val = song.notes[secNum].sectionBeats;
+		
+		return (val!=null) ? val : 4;
+	}
+
+	function sectionStartTime(song:SwagSong, secNum:Int):Float
+	{
+		var daBPM:Float = song.bpm;
+		var daPos:Float = 0;
+		
+		for (i in 0...secNum)
+		{
+			if(song.notes[i] != null)
+			{
+				if (song.notes[i].changeBPM)
+				{
+					daBPM = song.notes[i].bpm;
+				}
+				daPos += getSectionBeats(song, i) * (1000 * 60 / daBPM);
+			}
+		}
+		return daPos;
+	}
+
+	/** Sorts note info on ascending order **/
+	static function sortNoteInfo(a:Array<Dynamic>, b:Array<Dynamic>)
+	{
+		if (a[0] == b[0])
+			return 0;
+
+		return (a[0] < b[0]) ? -1 : 1;
+	}
+
+	/**Ok so I called them Mom and Dad, cause the Dad stuff goes into the Mom and makes the baby. Yeah.**/
 	function makeBabies()
 	{
-		if (!(dadData != null && momData != null))
+		if (dadData == null || momData == null)
 		{
 			console.addTextMessage("You're missing files bro.");
 			return;
 		}
 		
 		////
-		var cameraChart:SwagSong = Song.loadFromRawJson(dadData);
-		var _song:SwagSong = Song.loadFromRawJson(momData);
+		var notesChart:SwagSong = Song.loadFromRawJson(dadData);
+		var cameraChart:SwagSong = Song.loadFromRawJson(momData);
 
-		for (i in 0...cameraChart.notes.length){
-			var cameraSection = cameraChart.notes[i];
-			var chartedSection = _song.notes[i];
+		// cleaning
+		for (section in cameraChart.notes)
+			section.sectionNotes = [];
 
-			if (cameraSection == null || chartedSection == null){
-				trace("broke!!");
-				break;
-			}
+		// get notes
+		var allNotes:Array<Array<Dynamic>> = [];
+		while (notesChart.notes.length > 0){
+			var section = notesChart.notes.pop();
+
+			while (section.sectionNotes.length > 0){
+				var noteInfo = section.sectionNotes.pop();
+				if (!section.mustHitSection)
+					(noteInfo[1] > 3 ? noteInfo[1]-=4 : noteInfo[1]+=4);
 				
-			if (cameraSection.mustHitSection != chartedSection.mustHitSection){
-				chartedSection.mustHitSection = !chartedSection.mustHitSection;
-				
-				for (i in 0...chartedSection.sectionNotes.length){
-					var note = chartedSection.sectionNotes[i];
-					note[1] = (note[1] + 4) % 8;
-					chartedSection.sectionNotes[i] = note;
-				}
+				allNotes.push(noteInfo);	
 			}
-
-			_song.notes[i] = chartedSection;
 		}
+		allNotes.sort(sortNoteInfo);
 
-		/*
-		var playerNotes:Array<Array<Dynamic>> = [];
-		var opponentNotes:Array<Array<Dynamic>> = [];
-
-		for (section in dadChart.notes){
-			for (note in section.sectionNotes){
-				var container = (note > 3 && section.mustHitSection) ? playerNotes : opponentNotes; 
-
-				container.push(note);
-				section.sectionNotes.remove(note) ? continue : trace("this didn't work idiot");
-			}
-			dadChart.notes.remove(section); // remove shit because im a schizo
-		}
-		dadChart = null;
-
-		//// begin transplant
-		var curSec = 0; // current Section
-
-		function getSectionBeats(?section:Null<Int> = null)
+		// do the thang
+		for (sectionNum in 0...cameraChart.notes.length)
 		{
-			if (section == null) section = curSec;
-			var val:Null<Float> = null;
+			if (allNotes.length == 0)
+				break;
 			
-			if(_song.notes[section] != null) val = _song.notes[section].sectionBeats;
-			return val != null ? val : 4;
-		}
+			var section:SwagSection = cameraChart.notes[sectionNum];
+			var startTime:Float = sectionStartTime(cameraChart, sectionNum);
+			var endTime:Float = sectionStartTime(cameraChart, sectionNum+1);
 
-		function sectionStartTime(add:Int = 0):Float{
-			var daBPM:Float = _song.bpm;
-			var daPos:Float = 0;
-			for (i in 0...curSec + add)
-			{
-				if(_song.notes[i] != null)
-				{
-					if (_song.notes[i].changeBPM)
-					{
-						daBPM = _song.notes[i].bpm;
-					}
-					daPos += getSectionBeats(i) * (1000 * 60 / daBPM);
-				}
-			}
-			return daPos;
-		}
+			while (allNotes.length > 0){
+				var noteInfo = allNotes[0];
+				var noteTime = noteInfo[0];
 
-		for (sectionNumber in 0..._song.notes.length){
-			var section = _song.notes[sectionNumber];
-			// empty the chart first
-			for (note in section.sectionNotes)
-			{
-				section.sectionNotes = [];
-			}
-			
-			curSec = sectionNumber;
+				if (noteTime >= startTime && noteTime < endTime){
+					if (!section.mustHitSection) 
+						(noteInfo[1] > 3 ? noteInfo[1]-=4 : noteInfo[1]+=4);
 
-			var startThing:Float = sectionStartTime();
-			var endThing:Float = sectionStartTime(1);
-			
-			for (note in playerNotes)
-			{
-				var strumTime = note[0];
-
-				if (strumTime >= startThing && strumTime < endThing){
-					if (section.mustHitSection)
-						note[1] += 4;
-
-					section.sectionNotes.push(note);
-					playerNotes.remove(note);
-				}
-			}
-
-			for (note in opponentNotes)
-			{
-				var strumTime = note[0];
-
-				if (strumTime >= startThing && strumTime < endThing){
-					if (!section.mustHitSection)
-						note[1] += 4;
-
-					section.sectionNotes.push(note);
-					opponentNotes.remove(note);
+					section.sectionNotes.push(noteInfo);
+					allNotes.shift();
+				}else{
+					break;
 				}
 			}
 		}
-		*/
+		trace("got "+allNotes.length+" extra notes");
 
 		//// save the resulting chart
 		var json = {
-			"song": _song
+			"song": cameraChart,
+			"sowy": true
 		};
 
 		var data:String = Json.stringify(json, "\t");
