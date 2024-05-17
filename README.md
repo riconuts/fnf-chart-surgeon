@@ -1,2 +1,1 @@
-# fnf chart surgeon
-Takes the camera movements from one chart and puts them into another.
+Moves notes from one chart to another, only works on Legacy FNF charts.
