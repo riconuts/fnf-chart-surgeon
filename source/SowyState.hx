@@ -3,30 +3,24 @@ package;
 // FNF SHIT
 import Song;
 import Section;
-//
 
-import flixel.tweens.FlxEase;
-import flixel.tweens.FlxTween;
+//
+import haxe.Json;
+
+//
 import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.FlxObject;
 import flixel.FlxState;
 import flixel.FlxCamera;
-import flixel.group.FlxGroup;
-import flixel.text.FlxText;
-import flixel.ui.FlxButton;
-import flixel.util.FlxColor;
-import flixel.math.FlxPoint;
-import flixel.util.FlxSave;
-
-import flixel.group.FlxGroup.FlxTypedGroup;
-import flixel.group.FlxGroup;
-import flixel.math.FlxMath;
-import flixel.text.FlxText;
-import flixel.util.FlxStringUtil;
 import flixel.ui.FlxButton;
 import flixel.ui.FlxSpriteButton;
-import flixel.util.FlxColor;
+import flixel.text.FlxText;
+import flixel.group.FlxGroup;
+import flixel.tweens.FlxEase;
+import flixel.tweens.FlxTween;
+import flixel.math.FlxMath;
+import flixel.math.FlxPoint;
 
 // FILE SELECTION SHIT
 import openfl.display.Loader;
@@ -37,20 +31,24 @@ import openfl.net.FileFilter;
 import openfl.events.Event;
 import openfl.events.IOErrorEvent;
 import openfl.utils.ByteArray;
-//
-import haxe.Json;
 
 class SowyState extends FlxState
 {
 	var dadData:String;
 	var momData:String;
 
-	var jsonFileFilter = [new FileFilter("JSON Files", "*.json")];
-	
-	var console = new Console(); // to display messages and shit
-
 	var dadStatus:FlxText;
 	var momStatus:FlxText;
+
+	var jsonFileFilter = [new FileFilter("JSON Files", "*.json")];
+
+	var console = new Console(); // to display messages and shit
+
+	static var welcomeTexts = ["hello!!!!", "hiiii", ":)", "yooo"];
+	inline static function getWelcomeMessage():String
+		return welcomeTexts[Std.random(welcomeTexts.length)];
+	inline function salute()
+		console.addTextMessage(getWelcomeMessage());
 
 	override public function create():Void
 	{
@@ -63,7 +61,7 @@ class SowyState extends FlxState
 		add(bg);
 
 		add(console);
-		console.addTextMessage("hello world!!!");
+		salute();
 
 		////
 		var dadButton = new FlxButton(10, 10, "Load Notes Chart", function(){
@@ -98,11 +96,11 @@ class SowyState extends FlxState
 		add(childButton);
 
 		////
-		dadStatus = new FlxText(0, 10, 0, "Nothing.");
+		dadStatus = new FlxText(0, 10, 0, "Nothing loaded.");
 		dadStatus.setPosition(10 + dadButton.x + dadButton.width, 10 + dadButton.y);
 		add(dadStatus);
 
-		momStatus = new FlxText(0, 40, 0, "Nothing.");
+		momStatus = new FlxText(0, 40, 0, "Nothing loaded.");
 		momStatus.setPosition(10 + momButton.x + momButton.width, 10 + momButton.y);
 		add(momStatus);
 
@@ -124,11 +122,9 @@ class SowyState extends FlxState
 		var fr:FileReference = cast E.target;
 		fr.removeEventListener(Event.COMPLETE, _onLoadDad);
 
-		// it just works, so im going to stick with this
-		dadData = FlxStringUtil.formatArray([fr.data]);  
+		dadData = Std.string(fr.data);  
 
 		dadStatus.text = fr.name;
-
 		console.addTextMessage("Dad file successfully loaded");
 	}
 
@@ -146,15 +142,13 @@ class SowyState extends FlxState
 		var fr:FileReference = cast E.target;
 		fr.removeEventListener(Event.COMPLETE, _onLoadMom);
 
-		// it just works, so im going to stick with this
-		momData = FlxStringUtil.formatArray([fr.data]);  
+		momData = Std.string(fr.data);  
 
 		momStatus.text = fr.name;
-
 		console.addTextMessage("Mom file successfully loaded");
 	}
 
-	function getSectionBeats(song:SwagSong, secNum:Int)
+	function getSectionBeats(song:SwagSong, secNum:Int):Float
 	{
 		var val:Null<Float> = null;
 		
@@ -197,7 +191,7 @@ class SowyState extends FlxState
 	{
 		if (dadData == null || momData == null)
 		{
-			console.addTextMessage("You're missing files bro.");
+			console.addTextMessage("You're missing files dude!");
 			return;
 		}
 		
@@ -205,7 +199,7 @@ class SowyState extends FlxState
 		var notesChart:SwagSong = Song.loadFromRawJson(dadData);
 		var cameraChart:SwagSong = Song.loadFromRawJson(momData);
 
-		// cleaning
+		// clean up sections
 		for (section in cameraChart.notes)
 			section.sectionNotes = [];
 
@@ -249,7 +243,9 @@ class SowyState extends FlxState
 				}
 			}
 		}
-		trace("got "+allNotes.length+" extra notes");
+
+		if (allNotes.length > 0)
+			console.addTextMessage('Warning! ${allNotes.length} notes weren\'t added to any section :o');
 
 		//// save the resulting chart
 		var json = {
@@ -259,22 +255,22 @@ class SowyState extends FlxState
 
 		var data:String = Json.stringify(json, "\t");
 
-		if ((data != null) && (data.length > 0))
-		{
+		if (data == null || data.length == 0){
+			console.addTextMessage('An error ocurred. Resulting data is invalid?');
+			trace(data);
+		}else{
 			var _file = new FileReference();
 			_file.addEventListener(Event.COMPLETE, function(listener:Event){
 				console.addTextMessage("Save complete! :D");
 			});
 			_file.addEventListener(Event.CANCEL, function(listener:Event){
-				console.addTextMessage("Save canceled");
+				console.addTextMessage("Save canceled :|");
 			});
 			_file.addEventListener(IOErrorEvent.IO_ERROR, function(listener:Event){
 				console.addTextMessage("There was an error saving the file");
 			});
-			_file.save(data, Paths.formatToSongPath(_song.song) + ".json");
+			_file.save(data, Paths.formatToSongPath(cameraChart.song) + ".json");
 		}
-		else
-			console.addTextMessage("An error ocurred.");
 	}
 
 	#if !FLX_NO_KEYBOARD
@@ -284,7 +280,7 @@ class SowyState extends FlxState
 		clock += elapsed;
 
 		if (FlxG.keys.justPressed.ANY || FlxG.keys.pressed.ANY && clock > 0.5){
-			console.addTextMessage("yooo");
+			salute();
 			clock -= 0.5;
 		}
 
