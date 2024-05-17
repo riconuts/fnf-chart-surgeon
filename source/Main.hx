@@ -1,28 +1,30 @@
 package;
 
-import flixel.math.FlxRandom;
-import flixel.graphics.FlxGraphic;
 import flixel.FlxG;
 import flixel.FlxGame;
 import flixel.FlxState;
-import openfl.Assets;
+import flixel.math.FlxRandom;
 import openfl.Lib;
-import openfl.display.FPS;
-import openfl.display.Sprite;
+import openfl.Assets;
 import openfl.events.Event;
+import openfl.display.Sprite;
 import openfl.display.StageScaleMode;
 
+using StringTools;
+
 #if CRASH_HANDLER
+import haxe.CallStack;
 import lime.app.Application;
 import openfl.events.UncaughtErrorEvent;
-import haxe.CallStack;
-import haxe.io.Path;
-import sys.FileSystem;
+
+#if sys
 import sys.io.File;
-import sys.io.Process;
 #end
 
-using StringTools;
+#if (windows && cpp)
+@:cppFileCode('#include <windows.h>')
+#end
+#end
 
 class Main extends Sprite
 {
@@ -31,11 +33,8 @@ class Main extends Sprite
 	var initialState:Class<FlxState> = SowyState; // The FlxState the game starts with.
 	var zoom:Float = -1; // If -1, zoom is automatically calculated to fit the window dimensions.
 	var framerate:Int = 60; // How many frames per second the game should run at.
-	var skipSplash:Bool = FlxG.random.bool(7); // Whether to skip the flixel splash screen that appears in release mode.
+	var skipSplash:Bool = false; // Whether to skip the flixel splash screen that appears in release mode.
 	var startFullscreen:Bool = false; // Whether to start the game in fullscreen on desktop targets
-	public static var fpsVar:FPS;
-
-	// You can pretty much ignore everything from here on - your code should go in your states.
 
 	public static function main():Void
 	{
@@ -80,67 +79,73 @@ class Main extends Sprite
 			gameHeight = Math.ceil(stageHeight / zoom);
 		}
 		
-		addChild(new FlxGame(gameWidth, gameHeight, initialState, zoom, framerate, framerate, skipSplash, startFullscreen));
-
-		#if !mobile
-		Lib.current.stage.align = "tl";
-		Lib.current.stage.scaleMode = StageScaleMode.NO_SCALE;
-
-		/*
-		fpsVar = new FPS(10, 3, 0xFFFFFF);
-		fpsVar.visible = ClientPrefs.showFPS;
-		addChild(fpsVar);
-		*/
-		#end
-
-		/*
-		#if html5
-		FlxG.autoPause = false;
-		FlxG.mouse.visible = false;
-		#end
-		*/
+		addChild(new FlxGame(gameWidth, gameHeight, initialState, framerate, framerate, skipSplash, startFullscreen));
+		flixel.FlxG.scaleMode = new flixel.system.scaleModes.PixelPerfectScaleMode();
 
 		#if CRASH_HANDLER
-		Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, onCrash);
+		// Original code was made by sqirra-rng, big props to them!!!
+		Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(
+			UncaughtErrorEvent.UNCAUGHT_ERROR, 
+			(event:UncaughtErrorEvent)->{
+				onCrash(event.error);
+			}
+		);
+
+
+		#if cpp
+		untyped __global__.__hxcpp_set_critical_error_handler(onCrash);
+		#end
 		#end
 	}
+
 	
 	#if CRASH_HANDLER
-	function onCrash(e:UncaughtErrorEvent):Void
+	function onCrash(errorName:String):Void
 	{
-		var errMsg:String = "";
-		var path:String;
-		var callStack:Array<StackItem> = CallStack.exceptionStack(true);
-		var dateNow:String = Date.now().toString();
+		////
+		var ogTrace = haxe.Log.trace;
+		haxe.Log.trace = (msg, ?pos)->{
+			ogTrace(msg, null);
+		}
 
-		dateNow = dateNow.replace(" ", "_");
-		dateNow = dateNow.replace(":", "'");
+		////
+		trace("\nCall stack starts below");
 
-		path = "./crash/" + dateNow + ".txt";
+		var callstack:String = "";
 
-		for (stackItem in callStack)
+		for (stackItem in CallStack.exceptionStack(true))
 		{
 			switch (stackItem)
 			{
 				case FilePos(s, file, line, column):
-					errMsg += file + " (line " + line + ")\n";
+					callstack += '$file:$line\n';
 				default:
-					Sys.println(stackItem);
 			}
 		}
 
-		errMsg += "\nUncaught Error: " + e.error;
+		callstack += '\n$errorName';
 
-		if (!FileSystem.exists("./crash/"))
-			FileSystem.createDirectory("./crash/");
+		trace('\n$callstack\n');
 
-		File.saveContent(path, errMsg + "\n");
+		#if sys
+		File.saveContent("crash.txt", callstack);
+		#end
 
-		Sys.println(errMsg);
-		Sys.println("Crash dump saved in " + Path.normalize(path));
+		#if (windows && cpp)
+		windows_showErrorMsgBox(callstack, errorName);
+		#else
+		Application.current.window.alert(callstack, errorName);
+		#end
 
-		Application.current.window.alert(errMsg, "Error!");
+		#if sys
 		Sys.exit(1);
+		#end
 	}
+
+	#if (windows && cpp)
+	@:functionCode('MessageBox(NULL, message, title, MB_ICONERROR | MB_OK);')
+	function windows_showErrorMsgBox(message:String, title:String){}
+	#end
+
 	#end
 }
